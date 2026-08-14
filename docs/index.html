@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thunder Type</title>
+<meta name="description" content="A typeface drawn as lightning. Every glyph is a fractal discharge grown along the letter's skeleton, shaped by the weather of a chosen day and place. The same day in the same place always regenerates the same typeface.">
+<meta name="theme-color" content="#05060a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Thunder Type">
+<meta property="og:description" content="A typeface drawn as lightning, shaped by the weather of a chosen day and place.">
+<!-- 公開 URL が決まったら __SITE_URL__ を差し替える（絶対 URL でないとカードが出ない）。
+     og.png は frames.html の «OG card» から書き出す -->
+<meta property="og:url" content="__SITE_URL__/">
+<meta property="og:image" content="__SITE_URL__/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<!-- 外部ファイルを増やさずタブに雷を出す -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305060a'/%3E%3Cpath d='M19 3 L9 18 h5 l-3 11 L24 13 h-6 z' fill='%23ffffff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Roboto Mono",
+            Menlo, Consolas, "Liberation Mono", monospace;
+    --fg:#e8ecf3; --dim:rgba(232,236,243,.38); --mid:rgba(232,236,243,.62);
+    --line:rgba(255,255,255,.11);
+  }
+  * { box-sizing: border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:#05060a; color:var(--fg);
+         transition:background .5s ease;
+         font:12px/1.5 var(--mono);
+         font-variant-numeric: tabular-nums;
+         -webkit-font-smoothing: antialiased;
+         display:flex; flex-direction:column; }
+
+  .lbl { font-size:9.5px; letter-spacing:.18em; color:var(--dim); text-transform:uppercase; }
+
+  header { flex:none; display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+           padding:15px 20px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:11px; font-weight:500; letter-spacing:.34em;
+       text-transform:uppercase; white-space:nowrap; }
+  h1 b { font-weight:500; }
+
+  .field { display:flex; align-items:center; gap:8px; }
+  select, input[type=date] {
+    background:transparent; color:var(--fg); border:1px solid var(--line);
+    border-radius:2px; padding:6px 9px; font:inherit; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; }
+  select { max-width:min(52vw, 320px); }
+  select:focus, input:focus { outline:1px solid rgba(255,255,255,.35); outline-offset:-1px; }
+  button { background:transparent; color:var(--mid); border:1px solid var(--line);
+    border-radius:2px; padding:6px 9px; font:inherit; font-size:11px; line-height:1;
+    letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
+  button:hover { color:var(--fg); border-color:rgba(255,255,255,.38); }
+  .seg { display:flex; }
+  .seg button { border-radius:0; }
+  .seg button + button { border-left:0; }
+  .seg button.on { color:var(--fg); background:rgba(255,255,255,.09);
+                   border-color:rgba(255,255,255,.28); }
+  .icon { width:26px; height:26px; padding:0; border-radius:50%; font-size:11px; }
+  .spacer { flex:1 1 auto; }
+
+  .meter { display:flex; align-items:center; gap:9px; }
+  .meter i { width:110px; height:3px; background:rgba(255,255,255,.11); position:relative;
+             overflow:hidden; }
+  .meter i::after { content:''; position:absolute; inset:0 auto 0 0; width:var(--v,0%);
+    background:currentColor; transition:width .5s ease; }
+  .meter b { font-weight:500; font-size:12px; min-width:3.2em; }
+
+  /* 操作（地点・日付）と読み出しを同じ帯に並べる */
+  #bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px;
+         padding:9px 20px; border-bottom:1px solid var(--line); }
+  #bar select, #bar input[type=date] { padding:4px 7px; font-size:10.5px; }
+  #bar button { padding:5px 8px; font-size:10.5px; }
+  #bar select { max-width:min(44vw, 290px); }
+  .rule { width:1px; align-self:stretch; min-height:18px; background:var(--line); }
+
+  #stats { display:flex; flex-wrap:wrap; gap:0 24px; }
+  .st { display:flex; align-items:baseline; gap:8px; }
+  .st span { font-size:9.5px; letter-spacing:.18em; color:var(--dim); }
+  .st b { font-weight:500; font-size:11.5px; }
+  .st.warn { color:#e0b071; letter-spacing:.1em; font-size:9.5px; }
+  #err { color:#ff9a8a; font-size:10px; letter-spacing:.12em; padding:0 20px; }
+  #err:empty { display:none; }
+
+  main { flex:1 1 auto; display:flex; align-items:center; justify-content:center;
+         padding:28px 20px; min-height:0; }
+  #sheet { width:100%; }
+  #sheet svg { display:block; width:100%; height:auto; }
+  #app.loading #sheet { opacity:.4; transition:opacity .2s; }
+
+  /* ---- 落雷の閃光：画面全体を、ただし文字より背面で照らす ---- */
+  #flash { position:fixed; inset:0; pointer-events:none; opacity:0; z-index:0; }
+  #flash.on { animation: flash .78s linear both; }
+  @keyframes flash {
+    0%{opacity:0} 2%{opacity:.30} 8%{opacity:.04} 12%{opacity:.20}
+    18%{opacity:.02} 22%{opacity:.11} 32%{opacity:0} 100%{opacity:0}
+  }
+  header, #bar, #err, main { position:relative; z-index:1; }
+
+  /* ---- イントロ（ホーム画面）---- */
+  #intro { position:fixed; inset:0; z-index:50; background:#05060a;
+           display:flex; flex-direction:column; align-items:center; justify-content:center;
+           gap:36px; cursor:pointer; transition:opacity .6s ease, background .5s ease; }
+  #intro.gone { opacity:0; pointer-events:none; }
+  #introFlash { position:absolute; inset:0; opacity:0; pointer-events:none; }
+  /* 画面いっぱいの無地の上に敷くので、アプリ側と同じ強さだと面が勝ってしまう */
+  #introFlash.on { animation: introFlash .78s linear both; }
+  @keyframes introFlash {
+    0%{opacity:0} 2%{opacity:.16} 8%{opacity:.02} 12%{opacity:.11}
+    18%{opacity:.01} 22%{opacity:.06} 32%{opacity:0} 100%{opacity:0}
+  }
+  /* 落雷そのもの。文字より背面に走らせると時計が濁らない */
+  #bolts, #bolts2 { position:absolute; inset:0; width:100%; height:100%;
+                    pointer-events:none; overflow:visible; }
+  /* 本物の雷は残らない。多重雷撃でばたついたあと消える */
+  .bolt { opacity:0; animation: boltflash 1.05s linear both; }
+  @keyframes boltflash {
+    0%{opacity:0} 1.5%{opacity:1} 6%{opacity:.9} 8%{opacity:.06}
+    11%{opacity:1} 16%{opacity:.85} 18%{opacity:.1}
+    22%{opacity:1} 30%{opacity:.55} 33%{opacity:.12} 36%{opacity:.6}
+    48%{opacity:.28} 62%{opacity:.1} 78%{opacity:0} 100%{opacity:0}
+  }
+
+  /* 合間の遠雷。細く短命に、控えめな明るさで走らせる */
+  .bolt2 { opacity:0; animation: bolt2 .62s linear both; }
+  @keyframes bolt2 {
+    0%{opacity:0} 4%{opacity:.62} 11%{opacity:.08} 17%{opacity:.44}
+    26%{opacity:.05} 34%{opacity:.2} 52%{opacity:0} 100%{opacity:0}
+  }
+  /* 遠雷のときは空がわずかに明るむだけ */
+  #introFlash.dim { animation: flashdim .62s linear both; }
+  @keyframes flashdim {
+    0%{opacity:0} 4%{opacity:.055} 12%{opacity:.008} 18%{opacity:.035}
+    30%{opacity:0} 100%{opacity:0}
+  }
+
+  /* 巨大に、字間を詰めて、画面をほぼ埋める */
+  #introArt { position:relative; z-index:1; width:min(96vw, 1700px); }
+  #introArt svg { display:block; width:100%; height:auto; max-height:64vh; }
+  /* 落雷の瞬間に寄って、返し雷撃で横に揺れる */
+  #introArt.punch { animation: punch .78s cubic-bezier(.2,.9,.2,1) both; }
+  @keyframes punch {
+    0%   { transform: translateX(0) scale(1.13) }
+    2%   { transform: translateX(0) scale(1.12) }
+    9%   { transform: translateX(0) scale(1) }
+    12%  { transform: translateX(-9px) scale(1.008) }
+    15%  { transform: translateX(7px) scale(1) }
+    19%  { transform: translateX(-4px) scale(1) }
+    23%  { transform: translateX(3px) scale(1) }
+    28%  { transform: translateX(0) scale(1) }
+    100% { transform: translateX(0) scale(1) }
+  }
+
+  /* 白のカット。ごく短く前面に出して「閃光でフレームが飛ぶ」感じを出す */
+  #introBlast { position:absolute; inset:0; z-index:3; background:#fff;
+                opacity:0; pointer-events:none; }
+  #introBlast.on { animation: blast .78s linear both; }
+  @keyframes blast {
+    0%{opacity:0} 1%{opacity:.72} 7%{opacity:0} 11%{opacity:.34} 15%{opacity:0}
+    21%{opacity:.13} 25%{opacity:0} 100%{opacity:0}
+  }
+
+  /* 全画面の白が短時間に何度も点滅するので、抑制設定は必ず尊重する */
+  @media (prefers-reduced-motion: reduce) {
+    #introBlast, #introFlash, #flash, #introArt.punch, #introHint { animation: none !important; }
+    svg .all { animation: none !important; }
+    .bolt { animation: none !important; opacity:.5; }
+    .bolt2 { animation: none !important; opacity:0; }
+    #intro { transition: none; }
+  }
+
+  /* 読めないと入口の案内として機能しないので、点滅の谷でも文字が残る明るさにする */
+  #introHint { position:relative; z-index:1; font-size:10px; letter-spacing:.26em;
+               text-transform:uppercase; color:rgba(232,236,243,.88);
+               animation: breathe 2.6s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity:.55 } 50% { opacity:1 } }
+
+  /* ---- インフォ ---- */
+  dialog { border:1px solid var(--line); background:#0a0c11; color:var(--fg);
+    max-width:min(560px, calc(100vw - 32px)); padding:0; border-radius:3px;
+    font:12px/1.75 var(--mono); }
+  dialog::backdrop { background:rgba(2,3,6,.78); }
+  .modal { padding:22px 24px 24px; }
+  .modal h2 { margin:0 0 16px; font-size:10px; font-weight:500; letter-spacing:.28em;
+              text-transform:uppercase; color:var(--dim); }
+  .modal p { margin:0 0 18px; letter-spacing:.02em; }
+  .map { display:grid; grid-template-columns:auto 1fr; gap:7px 16px; margin:0 0 20px;
+         font-size:11px; }
+  .map dt { color:var(--dim); letter-spacing:.16em; text-transform:uppercase; }
+  .map dd { margin:0; }
+  .note { color:var(--dim); font-size:10.5px; line-height:1.8; letter-spacing:.04em; }
+  .modal footer { display:flex; justify-content:flex-end; margin-top:20px; }
+
+  @media (max-width: 660px) {
+    header { padding:12px 14px; gap:8px 12px; }
+    h1 { width:100%; }
+    #bar, #err { padding-left:14px; padding-right:14px; }
+    #bar { gap:8px 12px; }
+    #stats { gap:0 16px; }
+    .rule { display:none; }   /* 折り返すと縦罫が意味をなさない */
+    main { padding:16px 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="intro">
+  <div id="introFlash"></div>
+  <svg id="bolts2" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+  <svg id="bolts" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+  <div id="introArt"></div>
+  <div id="introHint">Click to enter</div>
+  <div id="introBlast"></div>
+</div>
+
+<div id="flash"></div>
+<div id="app" style="display:contents">
+
+  <header>
+    <h1><b>Thunder</b> Type</h1>
+
+    <div class="seg">
+      <!-- 「Specimen」は業界語で一般には通じない。この対は
+           「ある日の全ての字」対「ある月の全ての日」なので、数える対象を直接名指しする。
+           「1–31」案は月によって日数が違うのでラベルが嘘になる -->
+      <button class="view on" data-view="specimen">Letters</button>
+      <button class="view" data-view="calendar">Days</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="meter">
+      <span class="lbl">Charge</span>
+      <i id="charge"></i>
+      <b id="chargeNum">—</b>
+    </div>
+    <button id="again" title="Strike again">Strike</button>
+    <button id="infoBtn" class="icon" title="About" aria-label="About">i</button>
+  </header>
+
+  <div id="bar">
+    <div class="field">
+      <span class="lbl">Loc</span>
+      <select id="city" aria-label="Location"></select>
+    </div>
+
+    <div class="field">
+      <span class="lbl" id="dateLbl">Date</span>
+      <button id="prev" title="Previous">&#9664;</button>
+      <input type="date" id="date" aria-label="Date">
+      <button id="next" title="Next">&#9654;</button>
+      <button id="today">Today</button>
+    </div>
+
+    <span class="rule"></span>
+    <div id="stats"></div>
+  </div>
+  <div id="err"></div>
+
+  <main><div id="sheet"></div></main>
+
+</div>
+
+<dialog id="info">
+  <div class="modal">
+    <h2>About</h2>
+    <p>Every glyph is drawn as a lightning discharge — a fractal channel grown along the
+       letter's skeleton, then branched and tapered. The weather of the chosen day and
+       place sets every parameter.</p>
+    <dl class="map">
+      <dt>CAPE</dt><dd>Roughness &amp; branching</dd>
+      <dt>Storm hours</dt><dd>Extra charge</dd>
+      <dt>Wind</dt><dd>Slant</dd>
+      <dt>Temperature</dt><dd>Glow colour</dd>
+      <dt>Humidity</dt><dd>Bloom</dd>
+    </dl>
+    <p>The seed comes from the date and the coordinates, so the same day in the same place
+       always regenerates exactly the same typeface.</p>
+    <p class="note">
+      CAPE (convective available potential energy) is only published for the last 92 days.
+      Outside that window the charge is estimated from rainfall, wind and humidity, and the
+      readout says so.<br>
+      Calendar view draws one <b>A</b> per day, so a whole month of weather can be read at a glance.<br>
+      Data: Open-Meteo.
+    </p>
+    <footer><button id="infoClose">Close</button></footer>
+  </div>
+</dialog>
+
+<script src="bolt.js"></script>
+<script src="glyphs.js"></script>
+<script src="weather-core.js"></script>
+<script src="render-core.js"></script>
+<script src="live.js"></script>
+<!-- ?demo を付けたときだけ動く記録用の自動再生。通常アクセスでは何もしない -->
+<script src="demo.js"></script>
+</body>
+</html>
